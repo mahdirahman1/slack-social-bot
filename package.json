@@ -14,7 +14,7 @@
     "@slack/bolt": "^3.9.0"
   },
   "devDependencies": {
-    "dotenv": "^15.0.0",
+    "dotenv": "^16.0.0",
     "nodemon": "^2.0.15"
   }
 }
