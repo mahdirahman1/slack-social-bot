@@ -2,7 +2,7 @@
   "name": "onboarding-bot",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon app.js"
@@ -11,7 +11,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@slack/bolt": "^3.9.0"
+    "@slack/bolt": "^3.9.0",
+    "mongoose": "^6.2.0"
   },
   "devDependencies": {
     "dotenv": "^16.0.0",
