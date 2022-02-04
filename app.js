@@ -1,4 +1,7 @@
 const { App } = require("@slack/bolt");
+const interestData = require("./interests");
+const mongoose = require("mongoose");
+const User = require("./models/user");
 require("dotenv").config();
 // Initializes your app with your bot token and signing secret
 const app = new App({
@@ -8,11 +11,47 @@ const app = new App({
 	appToken: process.env.APP_TOKEN,
 });
 
-app.command("/addinterests", async ({ command, body, logger, client, ack, say }) => {
+mongoose
+	.connect(
+		"mongodb+srv://mahdi:" +
+			process.env.MONGO_DB_PASS +
+			"@clusterbotslack.1ko1w.mongodb.net/myFirstDatabase?retryWrites=true&w=majority",
+		{
+			useNewUrlParser: true,
+		}
+	)
+	.then(() => console.log("Connected to DB"))
+	.catch((err) => console.log(err));
+
+const getInterestOptions = () => {
+	const options = [];
+	Object.keys(interestData).map((category) => {
+		const object = {
+			label: {
+				type: "plain_text",
+				text: `${category}`,
+			},
+			options: [],
+		};
+		interestData[category].map((interest) => {
+			object.options.push({
+				text: {
+					type: "plain_text",
+					text: `${interest}`,
+				},
+				value: `${interest}`,
+			});
+		});
+		options.push(object);
+	});
+	return options;
+};
+
+app.command("/addinterests", async ({ command, body, logger, ack }) => {
 	try {
 		await ack();
 		console.log(command.trigger_ids);
-		 const result = await app.client.views.open({
+		const result = await app.client.views.open({
 			trigger_id: body.trigger_id,
 			view: {
 				type: "modal",
@@ -28,7 +67,7 @@ app.command("/addinterests", async ({ command, body, logger, client, ack, say })
 						block_id: "section678",
 						text: {
 							type: "mrkdwn",
-							text: "Pick items from the list",
+							text: "Pick as many interests as possible",
 						},
 						accessory: {
 							action_id: "text1234",
@@ -37,53 +76,80 @@ app.command("/addinterests", async ({ command, body, logger, client, ack, say })
 								type: "plain_text",
 								text: "Select interests",
 							},
-							options: [
-								{
-									text: {
-										type: "plain_text",
-										text: "*this is plain_text text*",
-									},
-									value: "value-0",
-								},
-								{
-									text: {
-										type: "plain_text",
-										text: "*this is plain_text text*",
-									},
-									value: "value-1",
-								},
-								{
-									text: {
-										type: "plain_text",
-										text: "*this is plain_text text*",
-									},
-									value: "value-2",
-								},
-							],
+							option_groups: getInterestOptions(),
 						},
 					},
 				],
 				submit: {
 					type: "plain_text",
-					text: "Submit",
+					text: "Add",
 				},
 			},
 		});
-
-    logger.info(result);
-
 	} catch (error) {
 		console.log("err");
 		console.error(error);
 	}
 });
 
+app.view("view_1", async ({ ack, body, view, client, logger }) => {
+	// Acknowledge the view_submission request
+	await ack();
+	console.log("submitted stuff");
+	const selectedOptions = [];
+	view["state"]["values"]["section678"]["text1234"].selected_options.forEach(
+		(interest) => {
+			selectedOptions.push(interest.value);
+		}
+	);
 
-app.view('view_1', async ({ ack, body, view, client, logger }) => {
-  // Acknowledge the view_submission request
-  await ack();
-  console.log('submitted stuff');
+	try {
+		const id = body["user"]["id"];
+		const found = await User.find({ id }).exec();
+		const userInfo = await client.users.info({
+			user: id,
+		});
+		const botId = body["view"]["bot_id"];
+		if (found.length > 0) {
+			//update
+			console.log(found);
+			const update = await User.updateOne(
+				{ id },
+				{
+					$set: {
+						_id: id,
+						name: userInfo.user.real_name,
+						interests: selectedOptions,
+					},
+				}
+			);
 
+			if (update) {
+				// DB save was successful
+				msg = "Your submission was successful";
+			} else {
+				msg = "There was an error with your submission";
+			}
+
+			// Message the user
+			const res = await client.chat.postMessage({
+				channel: id,
+				text: msg,
+			});
+		} else {
+			const user = new User({
+				_id: id,
+				name: userInfo.user.real_name,
+				interests: selectedOptions,
+			});
+
+			const res = await user.save();
+			console.log(res);
+		}
+		// Call the users.info method using the WebClient
+	} catch (error) {
+		console.error(error);
+	}
 });
 
 (async () => {
