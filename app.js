@@ -115,7 +115,7 @@ app.view("view_1", async ({ ack, body, view, client }) => {
 				{ id },
 				{
 					$set: {
-						_id: id,
+						id,
 						name: userInfo.user.real_name,
 						interests: selectedOptions,
 					},
@@ -136,7 +136,7 @@ app.view("view_1", async ({ ack, body, view, client }) => {
 			});
 		} else {
 			const user = new User({
-				_id: id,
+				id,
 				name: userInfo.user.real_name,
 				interests: selectedOptions,
 			});
