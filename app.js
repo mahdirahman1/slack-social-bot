@@ -9,6 +9,7 @@ const app = new App({
 	signingSecret: process.env.SLACK_SIGNING_SECRET,
 	socketMode: true, // enable the following to use socket mode
 	appToken: process.env.APP_TOKEN,
+	ignoreSelf: false,
 });
 
 mongoose
@@ -47,10 +48,9 @@ const getInterestOptions = () => {
 	return options;
 };
 
-app.command("/addinterests", async ({ command, body, logger, ack }) => {
+app.command("/addinterests", async ({ body, ack }) => {
 	try {
 		await ack();
-		console.log(command.trigger_ids);
 		const result = await app.client.views.open({
 			trigger_id: body.trigger_id,
 			view: {
@@ -92,10 +92,9 @@ app.command("/addinterests", async ({ command, body, logger, ack }) => {
 	}
 });
 
-app.view("view_1", async ({ ack, body, view, client, logger }) => {
+app.view("view_1", async ({ ack, body, view, client }) => {
 	// Acknowledge the view_submission request
 	await ack();
-	console.log("submitted stuff");
 	const selectedOptions = [];
 	view["state"]["values"]["section678"]["text1234"].selected_options.forEach(
 		(interest) => {
@@ -109,10 +108,9 @@ app.view("view_1", async ({ ack, body, view, client, logger }) => {
 		const userInfo = await client.users.info({
 			user: id,
 		});
-		const botId = body["view"]["bot_id"];
+
 		if (found.length > 0) {
 			//update
-			console.log(found);
 			const update = await User.updateOne(
 				{ id },
 				{
@@ -126,9 +124,9 @@ app.view("view_1", async ({ ack, body, view, client, logger }) => {
 
 			if (update) {
 				// DB save was successful
-				msg = "Your submission was successful";
+				msg = "Your interests were updated succesfully!";
 			} else {
-				msg = "There was an error with your submission";
+				msg = "Could not update your interests :( Try again";
 			}
 
 			// Message the user
@@ -143,8 +141,18 @@ app.view("view_1", async ({ ack, body, view, client, logger }) => {
 				interests: selectedOptions,
 			});
 
-			const res = await user.save();
-			console.log(res);
+			const add = await user.save();
+			if (add) {
+				// DB save was successful
+				msg = "Your interests were succesfully added!";
+			} else {
+				msg = "Could not add your interests :( Try again";
+			}
+
+			const res = await client.chat.postMessage({
+				channel: id,
+				text: msg,
+			});
 		}
 		// Call the users.info method using the WebClient
 	} catch (error) {
