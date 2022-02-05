@@ -40,7 +40,7 @@ const getInterestOptions = () => {
 					type: "plain_text",
 					text: `${interest}`,
 				},
-				value: `${interest}`,
+				value: `${category}-${interest}`,
 			});
 		});
 		options.push(object);
@@ -95,12 +95,15 @@ app.command("/addinterests", async ({ body, ack }) => {
 app.view("view_1", async ({ ack, body, view, client }) => {
 	// Acknowledge the view_submission request
 	await ack();
-	const selectedOptions = [];
+	const selectedOptions = { sports: [], music: [], videogames: [] };
 	view["state"]["values"]["section678"]["text1234"].selected_options.forEach(
 		(interest) => {
-			selectedOptions.push(interest.value);
+			const cat = interest.value.split("-")[0];
+			selectedOptions[cat].push(interest.text.text);
 		}
 	);
+
+	console.log(selectedOptions);
 
 	try {
 		const id = body["user"]["id"];
@@ -172,14 +175,22 @@ app.command("/random-match", async ({ body, ack, say }) => {
 			var random = Math.floor(Math.random() * count);
 
 			// Again query all users but only fetch one offset by our random #
+			
 			User.findOne()
 				.skip(random)
 				.exec(function (err, result) {
 					// Tada! random user
-					console.log(result.interests);
-					let string = result.interests.join(", ");
+					console.log(result);
+					let string = "";
+					Object.keys(result.interests).forEach((cat) => {
+						const ints = result.interests[cat].join(", ");
+						string += `*${cat}* - ${ints}\n`;
+					});
+					// let string = result.interests.join(", ");
 					console.log(string);
-					say(`Your match is <@${result.id}>, their interests are ${string}`);
+					say(`Your random match is <@${result.id}>! 
+					\nTheir interests are:\n${string}
+					`);
 				});
 		});
 	} catch (error) {
@@ -224,7 +235,9 @@ app.command("/common-interests", async ({ body, ack, command, say }) => {
 			}
 		});
 		let string = bestMatch.interests.join(", ");
-		say(`The match you have the most common interests with is <@${bestMatch.id}>, their interests are ${string}`);
+		say(
+			`The match you have the most common interests with is <@${bestMatch.id}>, their interests are ${string}`
+		);
 	} catch (error) {
 		console.log("err");
 		console.error(error);
