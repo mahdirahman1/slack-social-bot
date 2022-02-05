@@ -160,9 +160,80 @@ app.view("view_1", async ({ ack, body, view, client }) => {
 	}
 });
 
+app.command("/random-match", async ({ body, ack, say }) => {
+	//get a random person from db
+	// Get the count of all users
+
+	//list their interests
+	try {
+		await ack();
+		User.count().exec(function (err, count) {
+			// Get a random entry
+			var random = Math.floor(Math.random() * count);
+
+			// Again query all users but only fetch one offset by our random #
+			User.findOne()
+				.skip(random)
+				.exec(function (err, result) {
+					// Tada! random user
+					console.log(result.interests);
+					let string = result.interests.join(", ");
+					console.log(string);
+					say(`Your match is <@${result.id}>, their interests are ${string}`);
+				});
+		});
+	} catch (error) {
+		console.log("err");
+		console.error(error);
+	}
+});
+
+app.command("/common-interests", async ({ body, ack, command, say }) => {
+	//get a random person from db
+	// Get the count of all users
+
+	//list their interests
+	try {
+		await ack();
+
+		const currentUserId = body.user_id;
+		const currentUser = await User.find({ id: currentUserId });
+		const userInterests = currentUser[0].interests;
+		console.log(userInterests);
+
+		const allUsers = await User.find();
+
+		const interests = new Set(userInterests);
+		let maxNumberOfCommonInterests = 0;
+		let bestMatch = currentUser;
+
+		allUsers.forEach((user) => {
+			if (user.id !== currentUserId) {
+				user.interests.forEach((interest) => {
+					interests.add(interest);
+				});
+
+				const numberOfCommonInterests =
+					userInterests.length + user.interests.length - interests.size;
+
+				//console.log(numberOfCommonInterests)
+				if (numberOfCommonInterests > maxNumberOfCommonInterests) {
+					maxNumberOfCommonInterests = numberOfCommonInterests;
+					bestMatch = user;
+				}
+			}
+		});
+		let string = bestMatch.interests.join(", ");
+		say(`The match you have the most common interests with is <@${bestMatch.id}>, their interests are ${string}`);
+	} catch (error) {
+		console.log("err");
+		console.error(error);
+	}
+});
+
 (async () => {
-  const port = 3000;
-  // Start your app
-  await app.start(process.env.PORT || port);
-  console.log(`⚡️ Slack Bolt app is running on port ${port}!`);
+	const port = 3000;
+	// Start your app
+	await app.start(process.env.PORT || port);
+	console.log(`⚡️ Slack Bolt app is running on port ${port}!`);
 })();
