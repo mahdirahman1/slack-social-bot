@@ -40,7 +40,7 @@ const getInterestOptions = () => {
 					type: "plain_text",
 					text: `${interest}`,
 				},
-				value: `${interest}`,
+				value: `${category}-${interest}`,
 			});
 		});
 		options.push(object);
@@ -95,12 +95,21 @@ app.command("/addinterests", async ({ body, ack }) => {
 app.view("view_1", async ({ ack, body, view, client }) => {
 	// Acknowledge the view_submission request
 	await ack();
-	const selectedOptions = [];
+	const selectedOptions = {
+		sports: [],
+		music: [],
+		videogames: [],
+		TV: [],
+		miscellaneous: [],
+	};
 	view["state"]["values"]["section678"]["text1234"].selected_options.forEach(
 		(interest) => {
-			selectedOptions.push(interest.value);
+			const cat = interest.value.split("-")[0];
+			selectedOptions[cat].push(interest.text.text);
 		}
 	);
+
+	console.log(selectedOptions);
 
 	try {
 		const id = body["user"]["id"];
@@ -167,21 +176,34 @@ app.command("/random-match", async ({ body, ack, say }) => {
 	//list their interests
 	try {
 		await ack();
-		User.count().exec(function (err, count) {
-			// Get a random entry
-			var random = Math.floor(Math.random() * count);
+		const count = await User.count().exec();
+		if (count < 2) {
+			say("Cannot find a random match :( Not enough users");
+			return;
+		}
 
+		const userID = body["user_id"];
+		let foundID = userID;
+		let result = {};
+		let string = "";
+
+		while (foundID === userID) {
+			string = "";
+			const random = Math.floor(Math.random() * count);
 			// Again query all users but only fetch one offset by our random #
-			User.findOne()
-				.skip(random)
-				.exec(function (err, result) {
-					// Tada! random user
-					console.log(result.interests);
-					let string = result.interests.join(", ");
-					console.log(string);
-					say(`Your match is <@${result.id}>, their interests are ${string}`);
-				});
-		});
+			result = await User.findOne().skip(random).exec();
+			// Tada! random user
+
+			Object.keys(result.interests).forEach((cat) => {
+				const ints = result.interests[cat].join(", ");
+				string += `*${cat}* - ${ints}\n`;
+			});
+			foundID = result.id;
+		}
+
+		say(`Your random match is <@${result.id}>! 
+			\nTheir interests are:\n${string}
+			`);
 	} catch (error) {
 		console.log("err");
 		console.error(error);
@@ -199,32 +221,53 @@ app.command("/common-interests", async ({ body, ack, command, say }) => {
 		const currentUserId = body.user_id;
 		const currentUser = await User.find({ id: currentUserId });
 		const userInterests = currentUser[0].interests;
-		console.log(userInterests);
-
+		
 		const allUsers = await User.find();
 
-		const interests = new Set(userInterests);
 		let maxNumberOfCommonInterests = 0;
 		let bestMatch = currentUser;
 
 		allUsers.forEach((user) => {
 			if (user.id !== currentUserId) {
-				user.interests.forEach((interest) => {
-					interests.add(interest);
+				let commons = 0;
+				Object.keys(user.interests).forEach((cat) => {
+					const filteredArray = user.interests[cat].filter((value) =>
+						userInterests[cat].includes(value)
+					);
+
+					commons += filteredArray.length;
 				});
 
-				const numberOfCommonInterests =
-					userInterests.length + user.interests.length - interests.size;
-
-				//console.log(numberOfCommonInterests)
-				if (numberOfCommonInterests > maxNumberOfCommonInterests) {
-					maxNumberOfCommonInterests = numberOfCommonInterests;
+				if (commons > maxNumberOfCommonInterests) {
+					maxNumberOfCommonInterests = commons;
 					bestMatch = user;
 				}
 			}
 		});
-		let string = bestMatch.interests.join(", ");
-		say(`The match you have the most common interests with is <@${bestMatch.id}>, their interests are ${string}`);
+		if (bestMatch === currentUser) {
+			say("Sorry, could not find anyone with common interests :(");
+		}
+		const interests = {};
+		Object.keys(bestMatch.interests).forEach((cat) => {
+			const filteredArray = bestMatch.interests[cat].filter((value) =>
+				userInterests[cat].includes(value)
+			);
+
+			if (filteredArray.length !== 0) {
+				interests[cat] = filteredArray;
+			}
+		});
+
+		let string = "";
+		Object.keys(interests).forEach((cat) => {
+			const ints = interests[cat].join(", ");
+			string += `*${cat}* - ${ints}\n`;
+		});
+		// let string = bestMatch.interests.join(", ");
+		say(
+			`The match you have the most common interests with is <@${bestMatch.id}>!
+			\nYour common interests are:\n${string}`
+		);
 	} catch (error) {
 		console.log("err");
 		console.error(error);
