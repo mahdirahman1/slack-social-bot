@@ -195,8 +195,12 @@ app.command("/random-match", async ({ body, ack, say }) => {
 			// Tada! random user
 
 			Object.keys(result.interests).forEach((cat) => {
-				const ints = result.interests[cat].join(", ");
-				string += `*${cat}* - ${ints}\n`;
+				if (result.interests[cat].length !== 0) {
+					const ints = result.interests[cat].join(", ");
+					string += `*${
+						cat.charAt(0).toUpperCase() + cat.slice(1)
+					}* - ${ints}\n`;
+				}
 			});
 			foundID = result.id;
 		}
@@ -214,14 +218,18 @@ app.command("/common-interests", async ({ body, ack, command, say }) => {
 	//get a random person from db
 	// Get the count of all users
 
+	const currentUserId = body.user_id;
+	const currentUser = await User.find({ id: currentUserId });
+	if (currentUser.length === 0) {
+		say(
+			"You have not added interests, use the /addinterests command to get started"
+		);
+	}
 	//list their interests
 	try {
 		await ack();
-
-		const currentUserId = body.user_id;
-		const currentUser = await User.find({ id: currentUserId });
 		const userInterests = currentUser[0].interests;
-		
+
 		const allUsers = await User.find();
 
 		let maxNumberOfCommonInterests = 0;
@@ -261,7 +269,7 @@ app.command("/common-interests", async ({ body, ack, command, say }) => {
 		let string = "";
 		Object.keys(interests).forEach((cat) => {
 			const ints = interests[cat].join(", ");
-			string += `*${cat}* - ${ints}\n`;
+			string += `*${cat.charAt(0).toUpperCase() + cat.slice(1)}* - ${ints}\n`;
 		});
 		// let string = bestMatch.interests.join(", ");
 		say(
