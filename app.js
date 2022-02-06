@@ -1,4 +1,5 @@
 const { App } = require("@slack/bolt");
+const cron = require("node-cron");
 const interestData = require("./interests");
 const mongoose = require("mongoose");
 const User = require("./models/user");
@@ -12,6 +13,7 @@ const app = new App({
 	ignoreSelf: false,
 });
 
+//mongodb connection
 mongoose
 	.connect(
 		"mongodb+srv://mahdi:" +
@@ -24,6 +26,7 @@ mongoose
 	.then(() => console.log("Connected to DB"))
 	.catch((err) => console.log(err));
 
+//helper function
 const getInterestOptions = () => {
 	const options = [];
 	Object.keys(interestData).map((category) => {
@@ -46,6 +49,102 @@ const getInterestOptions = () => {
 		options.push(object);
 	});
 	return options;
+};
+
+cron.schedule("00 12 * * THU", async () => {
+	console.log("running a task every minute");
+
+	try {
+		getMatches();
+	} catch (err) {
+		console.log(err);
+	}
+});
+
+const getMatches = async () => {
+	const count = await User.count().exec();
+	if (count === 0) {
+		return;
+	}
+	if (count % 2 !== 0) count -= 1;
+
+	const matchedUsers = [];
+	const matches = [];
+	const allUsers = await User.find();
+	let currentIndex = 0;
+	while (matchedUsers.length !== count) {
+		if (matchedUsers.includes(allUsers[currentIndex].id)) {
+			currentIndex++;
+			continue;
+		}
+		matchedUsers.push(allUsers[currentIndex].id);
+		matches.push(allUsers[currentIndex]);
+		const min = currentIndex + 1;
+		const max = count - 1;
+
+		let found = false;
+
+		while (!found) {
+			const rand = Math.floor(Math.random() * (max - min + 1)) + min;
+			if (!matchedUsers.includes(allUsers[rand].id)) {
+				found = true;
+				matchedUsers.push(allUsers[rand].id);
+				matches.push(allUsers[rand]);
+			}
+		}
+		currentIndex++;
+	}
+	await app.client.chat.postMessage({
+		channel: "C031UF1MXEX",
+		text: `Weekly match results: `,
+	});
+	for (let i = 0; i < matches.length; i += 2) {
+		const user1 = matches[i];
+		const user2 = matches[i + 1];
+		//send user 1 details
+		let interests = "";
+		Object.keys(user2.interests).forEach((cat) => {
+			if (user2.interests[cat].length !== 0) {
+				const ints = user2.interests[cat].join(", ");
+				interests += `*${
+					cat.charAt(0).toUpperCase() + cat.slice(1)
+				}* - ${ints}\n`;
+			}
+		});
+
+		let msg = `---------------------------------------------------------------------\nYour weekly random match is <@${user2.id}>! 
+		\nTheir interests are:\n${interests}
+		`;
+
+		await app.client.chat.postMessage({
+			channel: user1.id,
+			text: msg,
+		});
+
+		interests = "";
+		Object.keys(user1.interests).forEach((cat) => {
+			if (user1.interests[cat].length !== 0) {
+				const ints = user1.interests[cat].join(", ");
+				interests += `*${
+					cat.charAt(0).toUpperCase() + cat.slice(1)
+				}* - ${ints}\n`;
+			}
+		});
+
+		msg = `---------------------------------------------------------------------\nYour weekly random match is <@${user1.id}>! 
+		\nTheir interests are:\n${interests}
+		`;
+
+		await app.client.chat.postMessage({
+			channel: user2.id,
+			text: msg,
+		});
+
+		await app.client.chat.postMessage({
+			channel: "C031UF1MXEX",
+			text: ` -  <@${user1.id}> matched with  <@${user2.id}>`,
+		});
+	}
 };
 
 app.command("/addinterests", async ({ body, ack }) => {
@@ -205,7 +304,7 @@ app.command("/random-match", async ({ body, ack, say }) => {
 			foundID = result.id;
 		}
 
-		say(`Your random match is <@${result.id}>! 
+		say(`---------------------------------------------------------------------\nYour random match is <@${result.id}>! 
 			\nTheir interests are:\n${string}
 			`);
 	} catch (error) {
@@ -273,7 +372,7 @@ app.command("/common-interests", async ({ body, ack, command, say }) => {
 		});
 		// let string = bestMatch.interests.join(", ");
 		say(
-			`The match you have the most common interests with is <@${bestMatch.id}>!
+			`---------------------------------------------------------------------\nThe match you have the most common interests with is <@${bestMatch.id}>!
 			\nYour common interests are:\n${string}`
 		);
 	} catch (error) {
